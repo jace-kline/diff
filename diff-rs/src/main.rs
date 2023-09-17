@@ -3,6 +3,7 @@ use std::io::{Read, Error};
 use sha2::{Digest, Sha256};
 
 mod hashing;
+mod merkle;
 
 use hashing::*;
 
