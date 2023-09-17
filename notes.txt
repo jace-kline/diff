@@ -1,0 +1,6 @@
+sha2 crate - return type of Sha256.finalize()?
+GenericArray<u8, <Sha256 as Digest>::OutputSize> <=> GenericArray<u8, U32>
+https://www.reddit.com/r/rust/comments/cmg5cx/how_to_return_a_genericarray_from_a_function/
+
+RustCrypto project
+https://github.com/RustCrypto/hashes#crate-names

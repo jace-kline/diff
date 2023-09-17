@@ -1,0 +1,16 @@
+[package]
+name = "diff-rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+generic-array = "1.0"
+
+# Hash algorithm crates
+digest = "0.10"
+sha1 = "0.10"
+sha2 = "0.10"
+# sha3 = "0.10"
+md-5 = "0.10"
