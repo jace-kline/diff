@@ -1,21 +1,25 @@
 use std::{path::PathBuf, time::SystemTime};
-use digest::Digest;
-use super::hashing;
+use digest::{Digest, generic_array::GenericArray};
+use crate::hashing;
 
-type HashType = u64;
-
-pub struct MerkleNode<T> {
-    hash: HashType,
-    children: Option<Vec<MerkleNode<T>>>,
+// D: The hash type
+// T: The context to attach to this node
+pub struct MerkleNode<D, T>
+where D: Digest
+{
+    hash: hashing::DigestByteArray<D>,
+    children: Option<Vec<MerkleNode<D, T>>>,
     ctx: T
 }
 
-impl<T> MerkleNode<T> {
+impl<D, T> MerkleNode<D, T>
+where D: Digest
+{
     // pub fn compute_derived_hash<D: Digest>(&self, children: &[HashType]) -> HashType {
     //     hashing::hash()
     // }
 
-    pub fn new_leaf(&self, hash: HashType, ctx: T) -> Self {
+    pub fn new_leaf(&self, hash: hashing::DigestByteArray<D>, ctx: T) -> Self {
         Self {
             hash,
             children: None,
@@ -23,11 +27,15 @@ impl<T> MerkleNode<T> {
         }
     }
 
-    // pub fn new_derived<D: Digest>(&self, children: Vec<MerkleNode<T>>, ctx: T) -> Self {
-    //     Self {
-    //         hash: 
-    //     }
-    // }
+    pub fn new_derived(&self, children: Vec<MerkleNode<D, T>>, ctx: T) -> Self {
+        let child_hashes: Vec<hashing::DigestByteArray<D>> = children.iter().map(|c| c.hash.clone()).collect();
+        let hash = hashing::combine_hashes::<D>(&child_hashes);
+        Self {
+            hash,
+            children: Some(children),
+            ctx
+        }
+    }
 }
 
 enum FsItemType {

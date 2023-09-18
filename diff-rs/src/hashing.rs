@@ -11,6 +11,12 @@ pub fn hash_sha256(data: &[u8]) -> [u8; 32] {
     hasher.finalize().into()
 }
 
+pub fn combine_hashes<D: Digest>(hashes: &[DigestByteArray<D>]) -> DigestByteArray<D> 
+{
+    let concatted: Vec<u8> = hashes.iter().flat_map(|h| h.into_iter()).map(|b| b.clone()).collect();
+    hash::<D>(&concatted)
+}
+
 pub fn hash<D: Digest>(data: &[u8]) -> DigestByteArray<D> {
     let mut hasher = D::new();
     hasher.update(data);
@@ -113,4 +119,22 @@ fn hash_dyn_example() {
     println!("{}", hash_to_hex_string(& *hash1_1));
     println!("{}", hash_to_hex_string(& *hash1_2));
     println!("{}", hash_to_hex_string(& *hash2_1));
+}
+
+#[test]
+fn combine_hashes_example() {
+    let data: Vec<[u8; 4]> = vec![
+        [0, 1, 2, 3],
+        [0, 2, 4, 6],
+        [1, 3, 5, 7]
+    ];
+
+    type D = Sha256;
+
+    let hashes: Vec<DigestByteArray<D>> = data.iter().map(|d| hash::<D>(d)).collect();
+    let combined = combine_hashes::<Sha256>(&hashes);
+    for h in hashes {
+        println!("{}", hash_to_hex_string(&h));
+    }
+    println!("combined: {}", hash_to_hex_string(&combined));
 }
