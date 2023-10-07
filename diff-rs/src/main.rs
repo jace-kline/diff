@@ -1,5 +1,4 @@
-use std::fs::File;
-use std::io::{Read, Error};
+use std::io;
 use sha2::{Digest, Sha256};
 
 mod hashing;
