@@ -2,6 +2,7 @@ use std::{fs, io};
 use std::io::{Read, Error};
 use digest::{Digest, DynDigest, OutputSizeUser, generic_array::GenericArray};
 use sha2::Sha256;
+use hex;
 
 pub type DigestByteArray<D: Digest> = GenericArray<u8, <D as OutputSizeUser>::OutputSize>;
 
@@ -90,11 +91,39 @@ pub fn select_hasher(s: &str) -> Box<dyn DynDigest> {
 }
 
 pub fn hash_to_hex_string(digest: &[u8]) -> String {
-    digest
-    .into_iter()
-    .map(|b| format!("{:x?}", b))
-    .collect::<Vec<String>>()
-    .join("")
+    hex::encode(digest)
+}
+
+pub fn hex_string_to_hash_vec(s: &str) -> Result<Vec<u8>, hex::FromHexError> {
+    hex::decode(s)
+}
+
+pub fn hex_string_to_hash<D: Digest>(s: &str) -> Result<DigestByteArray<D>, hex::FromHexError> {
+    let bytes = hex_string_to_hash_vec(s)?;
+    let mut arr = DigestByteArray::<D>::default();
+    arr.copy_from_slice(&bytes);
+    Ok(arr)
+}
+
+#[test]
+fn test_hex_string_to_hash_vec() {
+    let s = "68656c6c6f";
+    let bytes = hex_string_to_hash_vec(s).unwrap();
+    println!("{:?}", bytes);
+}
+
+#[test]
+fn test_hash_to_hex_string() {
+    let hash = hash::<Sha256>(b"hello");
+    println!("{}", hash_to_hex_string(&hash));
+}
+
+#[test]
+fn test_hex_string_to_hash() {
+    let hash = hash::<Sha256>(b"hello");
+    let hex_string = hash_to_hex_string(&hash);
+    let hash2 = hex_string_to_hash::<Sha256>(&hex_string).unwrap();
+    assert_eq!(hash, hash2);
 }
 
 #[test]

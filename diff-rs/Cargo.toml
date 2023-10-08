@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 generic-array = "1.0"
+hex = "0.4.3"
 
 # Hash algorithm crates
 digest = "0.10"

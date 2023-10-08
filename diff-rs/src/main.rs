@@ -3,6 +3,8 @@ use sha2::{Digest, Sha256};
 
 mod hashing;
 mod merkle;
+mod diff;
+mod vc;
 
 use hashing::*;
 
