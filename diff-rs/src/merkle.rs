@@ -36,41 +36,5 @@ pub trait MerkleNode<D: Digest> {
     fn get_child_hashes(&self) -> Vec<DigestByteArray<D>> {
         self.get_children().iter().map(|c| c.get_hash()).collect()
     }
-
-    fn compute_hash(&self) -> DigestByteArray<D> {
-        if self.is_leaf() {
-            self.get_hash().clone()
-        } else {
-            let child_hashes = 
-                &self.get_child_hashes().iter()
-                .map(|c| c.clone())
-                .collect::<Vec<DigestByteArray<D>>>();
-            combine_hashes::<D>(child_hashes)
-        }
-    }
-
-    fn compute_hash_recursive(&self) -> DigestByteArray<D> {
-        if self.is_leaf() {
-            self.get_hash().clone()
-        } else {
-            let child_hashes = 
-                &self.get_children().iter()
-                .map(|&c| c.compute_hash_recursive())
-                .collect::<Vec<DigestByteArray<D>>>();
-            combine_hashes::<D>(child_hashes)
-        }
-    }
-
-    fn verify_hash(&self) -> bool {
-        self.compute_hash() == self.get_hash()
-    }
-
-    fn verify_hash_recursive(&self) -> bool {
-        self.compute_hash_recursive() == self.get_hash()
-    }
-
-    fn verify_hash_recursive_with(&self, hash: &DigestByteArray<D>) -> bool {
-        self.compute_hash_recursive() == *hash
-    }
     
 }

@@ -5,6 +5,7 @@ mod hashing;
 mod merkle;
 mod diff;
 mod vc;
+mod util;
 
 use hashing::*;
 
