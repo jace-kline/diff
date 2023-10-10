@@ -11,18 +11,19 @@ use crate::hashing::*;
 use crate::merkle::*;
 use crate::util::*;
 
-type VcHasher = Sha256;
-type VcHash = DigestByteArray<VcHasher>;
-type Name = String;
+pub type VcHasher = Sha256;
+pub type VcHash = DigestByteArray<VcHasher>;
+pub type VcHashString = String;
+pub type Name = String;
+
+pub trait VcHashId {
+    fn get_hash_bytes(&self) -> VcHash;
+    fn get_hash_str(&self) -> VcHashString;
+}
 
 #[derive(Debug)]
 pub struct Blob {
     pub data: Box<[u8]>,
-    pub hash: VcHash
-}
-
-#[derive(Debug)]
-pub struct BlobStub {
     pub hash: VcHash
 }
 
@@ -45,7 +46,6 @@ pub struct Commit<'a> {
 #[derive(Debug)]
 pub enum FsObject {
     Blob(Blob),
-    BlobStub(BlobStub),
     Tree(Tree)
 }
 
@@ -57,8 +57,8 @@ pub enum VcObject<'a> {
 
 #[derive(Debug)]
 pub enum HeadRef<'a> {
-    Tag(&'a str),
-    Head(&'a str),
+    Tag(Name),
+    Head(Name),
     Commit(&'a Commit<'a>)
 }
 
@@ -121,6 +121,7 @@ impl Blob {
     }
 }
 
+
 impl MerkleNode<VcHasher> for Blob {
     fn get_hash(&self) -> VcHash {
         hash::<VcHasher>(&self.data)
@@ -128,6 +129,16 @@ impl MerkleNode<VcHasher> for Blob {
 
     fn get_children(&self) -> Vec<&dyn MerkleNode<VcHasher>> {
         Vec::new()
+    }
+}
+
+impl VcHashId for Blob {
+    fn get_hash_bytes(&self) -> VcHash {
+        self.hash.clone()
+    }
+
+    fn get_hash_str(&self) -> VcHashString {
+        hash_to_hex_string(&self.hash)
     }
 }
 
@@ -156,51 +167,6 @@ fn test_blob_to_file_from_file() {
     assert_eq!(blob.get_data(), blob2.get_data());
 }
 
-impl BlobStub {
-    pub fn new(hash: VcHash) -> Self {
-        Self {
-            hash
-        }
-    }
-
-    pub fn from_file<P>(path: P) -> Result<Self, Box<dyn Error>>
-    where P: AsRef<Path>
-    {
-        let path = path.as_ref();
-        PathBuf::from(path).file_name().ok_or(std::io::Error::new(std::io::ErrorKind::NotFound, "Invalid filename"))?;
-        if !Path::exists(path) {
-            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::NotFound, "File does not exist")));
-        }
-        let p = PathBuf::from(path);
-        let fname = p.file_name()
-            .ok_or(std::io::Error::new(std::io::ErrorKind::NotFound, "Invalid filename"))?
-            .to_str().ok_or(std::io::Error::new(std::io::ErrorKind::NotFound, "Invalid filename"))?;
-        let hash = hex_string_to_hash::<VcHasher>(fname)?;
-        Ok(Self::new(hash))
-    }
-
-    pub fn to_file<P>(&self, parent_path: P) -> Result<(), Box<dyn Error>>
-    where P: AsRef<Path>
-    {
-        let path = PathBuf::from(parent_path.as_ref()).join(hash_to_hex_string(&self.get_hash()));
-        if Path::exists(&path) { // assume if file exists with same hash name, it contains the same data
-            return Ok(())
-        } else {
-            return Err(Box::new(std::io::Error::new(std::io::ErrorKind::NotFound, "Cannot write blob stub to file")));
-        }
-    }
-}
-
-impl MerkleNode<VcHasher> for BlobStub {
-    fn get_hash(&self) -> VcHash {
-        self.hash.clone()
-    }
-
-    fn get_children(&self) -> Vec<&dyn MerkleNode<VcHasher>> {
-        Vec::new()
-    }
-}
-
 impl Tree {
     pub fn new(listings: HashMap<Name, FsObject>) -> Self {
         let child_hashes = listings.values().map(|c| c.get_hash()).collect::<Vec<VcHash>>();
@@ -218,47 +184,13 @@ impl Tree {
         if Path::exists(&path) { // assume if file exists with same hash name, it contains the same data
             return Ok(())
         }
-        let mut f = OpenOptions::new().append(true).open(path)?;
-        for (name, obj) in self.listings.iter() {
-            match obj {
-                FsObject::Blob(b) => {
-                    writeln!(format!("blob {} {}", name, hash_to_hex_string(&b.get_hash())))?;
-                },
-                FsObject::BlobStub(b) => {
-                    writeln!(format!("blob {} {}", name, hash_to_hex_string(&b.get_hash())))?;
-                },
-                FsObject::Tree(t) => {
-                    writeln!(format!("tree {} {}\n", name, hash_to_hex_string(&t.get_hash())))?;
-                }
-            }
-        }
-        Ok(())
+        todo!();
     }
 
     pub fn from_file<P>(path: P) -> Result<Self, Box<dyn Error>>
     where P: AsRef<Path>
     {
-        let lines = read_lines(&path)?;
-        let mut listings: HashMap<Name, FsObject> = HashMap::new();
-        for line in lines {
-            let mut words = line.split_whitespace();
-            let kind = words.next().ok_or(std::io::Error::new(std::io::ErrorKind::InvalidData, "Failed to parse tree file"))?;
-            let name = words.next().ok_or(std::io::Error::new(std::io::ErrorKind::InvalidData, "Failed to parse tree file"))?;
-            let hashstr = words.next().ok_or(std::io::Error::new(std::io::ErrorKind::InvalidData, "Failed to parse tree file"))?;
-            match kind {
-                "blob" => {
-                    listings.insert(name.to_string(), FsObject::BlobStub(BlobStub::new(hex_string_to_hash::<VcHasher>(hashstr)?)));
-                },
-                "tree" => {
-                    let t = Tree::from_file(path.as_ref().join(hashstr))?;
-                    listings.insert(name.to_string(), FsObject::Tree(t));
-                },
-                _ => {
-                    return Err(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "Failed to parse tree file")));
-                }
-            }
-        }
-        Ok(Self::new(listings))
+        todo!();
     }
 }
 
@@ -269,6 +201,16 @@ impl MerkleNode<VcHasher> for Tree {
 
     fn get_children(&self) -> Vec<&dyn MerkleNode<VcHasher>> {
         self.listings.values().map(|c| c as &dyn MerkleNode<VcHasher>).collect()
+    }
+}
+
+impl VcHashId for Tree {
+    fn get_hash_bytes(&self) -> VcHash {
+        self.hash.clone()
+    }
+
+    fn get_hash_str(&self) -> VcHashString {
+        hash_to_hex_string(&self.hash)
     }
 }
 
@@ -304,6 +246,16 @@ impl<'a> MerkleNode<VcHasher> for Commit<'a> {
     }
 }
 
+impl VcHashId for Commit<'_> {
+    fn get_hash_bytes(&self) -> VcHash {
+        self.hash.clone()
+    }
+
+    fn get_hash_str(&self) -> VcHashString {
+        hash_to_hex_string(&self.hash)
+    }
+}
+
 impl FsObject {
     pub fn from_file<P>(path: P) -> Result<Self, Box<dyn Error>>
     where P: AsRef<Path>
@@ -314,7 +266,6 @@ impl FsObject {
             return Err(Box::new(std::io::Error::new(std::io::ErrorKind::NotFound, "File does not exist")));
         }
         Blob::from_file(path).map(|b| Self::Blob(b))
-            .or_else(|_| BlobStub::from_file(path).map(|b| Self::BlobStub(b)))
             .or_else(|_| Tree::from_file(path).map(|t| Self::Tree(t)))
     }
 
@@ -323,9 +274,6 @@ impl FsObject {
     {
         match self {
             FsObject::Blob(b) => {
-                b.to_file(parent_path)?;
-            },
-            FsObject::BlobStub(b) => {
                 b.to_file(parent_path)?;
             },
             FsObject::Tree(t) => {
@@ -340,7 +288,6 @@ impl MerkleNode<VcHasher> for FsObject {
     fn get_hash(&self) -> VcHash {
         match self {
             FsObject::Blob(b) => b.get_hash(),
-            FsObject::BlobStub(b) => b.get_hash(),
             FsObject::Tree(t) => t.get_hash()
         }
     }
@@ -348,9 +295,21 @@ impl MerkleNode<VcHasher> for FsObject {
     fn get_children(&self) -> Vec<&dyn MerkleNode<VcHasher>> {
         match self {
             FsObject::Blob(b) => b.get_children(),
-            FsObject::BlobStub(b) => b.get_children(),
             FsObject::Tree(t) => t.get_children()
         }
+    }
+}
+
+impl VcHashId for FsObject {
+    fn get_hash_bytes(&self) -> VcHash {
+        match self {
+            FsObject::Blob(b) => b.get_hash(),
+            FsObject::Tree(t) => t.get_hash()
+        }
+    }
+
+    fn get_hash_str(&self) -> VcHashString {
+        hash_to_hex_string(&self.get_hash_bytes())
     }
 }
 
@@ -367,6 +326,19 @@ impl<'a> MerkleNode<VcHasher> for VcObject<'a> {
             VcObject::FsObject(f) => f.get_children(),
             VcObject::Commit(c) => c.get_children()
         }
+    }
+}
+
+impl VcHashId for VcObject<'_> {
+    fn get_hash_bytes(&self) -> VcHash {
+        match self {
+            VcObject::FsObject(f) => f.get_hash(),
+            VcObject::Commit(c) => c.get_hash()
+        }
+    }
+
+    fn get_hash_str(&self) -> VcHashString {
+        hash_to_hex_string(&self.get_hash_bytes())
     }
 }
 
